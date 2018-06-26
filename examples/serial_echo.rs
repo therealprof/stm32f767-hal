@@ -1,5 +1,11 @@
 #![feature(used)]
+#![no_main]
 #![no_std]
+
+#[macro_use(entry, exception)]
+extern crate cortex_m_rt;
+
+use cortex_m_rt::ExceptionFrame;
 
 extern crate panic_abort;
 
@@ -12,7 +18,19 @@ extern crate nb;
 
 use hal::serial::Serial;
 
-fn main() {
+exception!(*, default_handler);
+
+fn default_handler(_irqn: i16) {}
+
+exception!(HardFault, hard_fault);
+
+fn hard_fault(_ef: &ExceptionFrame) -> ! {
+    loop {}
+}
+
+entry!(main);
+
+fn main() -> ! {
     if let Some(p) = stm32f767::Peripherals::take() {
         let gpiod = p.GPIOD.split();
         let gpiob = p.GPIOB.split();
@@ -39,4 +57,6 @@ fn main() {
             }
         }
     }
+
+    loop {}
 }

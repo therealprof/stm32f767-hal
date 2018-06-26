@@ -1,14 +1,18 @@
 #![feature(used)]
+#![no_main]
 #![no_std]
 
-extern crate panic_abort;
+#[macro_use(entry, exception)]
+extern crate cortex_m_rt;
 
+use cortex_m_rt::ExceptionFrame;
+
+extern crate panic_abort;
 extern crate stm32f767_hal as hal;
 use hal::gpio::*;
 use hal::prelude::*;
 use hal::stm32f767;
 
-#[macro_use(exception)]
 extern crate stm32f7;
 
 extern crate cortex_m;
@@ -21,7 +25,19 @@ use core::ops::DerefMut;
 
 static GPIO: Mutex<RefCell<Option<gpiob::PB7<Output<PushPull>>>>> = Mutex::new(RefCell::new(None));
 
-fn main() {
+exception!(*, default_handler);
+
+fn default_handler(_irqn: i16) {}
+
+exception!(HardFault, hard_fault);
+
+fn hard_fault(_ef: &ExceptionFrame) -> ! {
+    loop {}
+}
+
+entry!(main);
+
+fn main() -> ! {
     if let (Some(p), Some(cp)) = (stm32f767::Peripherals::take(), Peripherals::take()) {
         let gpiob = p.GPIOB.split();
         let mut rcc = p.RCC.constrain();
@@ -50,31 +66,31 @@ fn main() {
         /* Start interrupt generation */
         syst.enable_interrupt();
     }
+
+    loop {}
 }
 
 /* Define an exception, i.e. function to call when exception occurs. Here if our SysTick timer
  * trips the flash function will be called and the specified stated passed in via argument */
-exception!(SYS_TICK, flash, locals: {
-    state: u8 = 1;
-});
+exception!(SysTick, flash, state: u8 = 1);
 
-fn flash(l: &mut SYS_TICK::Locals) {
+fn flash(state: &mut u8) {
     /* Enter critical section */
     cortex_m::interrupt::free(|cs| {
         if let &mut Some(ref mut led) = GPIO.borrow(cs).borrow_mut().deref_mut() {
             /* Check state variable, keep LED off most of the time and turn it on every 10th tick */
-            if l.state < 10 {
+            if *state < 10 {
                 // If set turn off the LED
                 led.set_low();
 
                 // And now increment state variable
-                l.state += 1;
+                *state += 1;
             } else {
                 // If not set, turn on the LED
                 led.set_high();
 
                 // And set new state variable back to 0
-                l.state = 0;
+                *state = 0;
             }
         }
     });
