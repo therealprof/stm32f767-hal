@@ -1,11 +1,14 @@
-use stm32f7::stm32f7x7::{I2C1, RCC};
-
-use hal::blocking::i2c::{Write, WriteRead};
+//! Inter-Integrated Circuit (I2C) bus
 
 use core::cmp;
-use gpio::gpiob::{PB6, PB7, PB8, PB9};
-use gpio::{AF4, Alternate};
-use time::{KiloHertz, U32Ext};
+
+use crate::pac::{I2C1, RCC};
+
+use crate::hal::blocking::i2c::{Write, WriteRead};
+
+use crate::gpio::gpiob::{PB6, PB7, PB8, PB9};
+use crate::gpio::{Alternate, AF4};
+use crate::time::{KiloHertz, U32Ext};
 
 /// I2C abstraction
 pub struct I2c<I2C, PINS> {
@@ -68,7 +71,7 @@ impl<PINS> I2c<I2C1, PINS> {
         }
 
         /* Enable I2C signal generator, and configure I2C for 400KHz full speed */
-        i2c.timingr.write(|w| unsafe {
+        i2c.timingr.write(|w| {
             w.presc()
                 .bits(presc)
                 .scldel()
@@ -91,12 +94,12 @@ impl<PINS> I2c<I2C1, PINS> {
         (self.i2c, self.pins)
     }
 
-    fn send_byte(&self, byte: &u8) -> Result<(), Error> {
+    fn send_byte(&self, byte: u8) -> Result<(), Error> {
         /* Wait until we're ready for sending */
         while self.i2c.isr.read().txis().bit_is_clear() {}
 
         /* Push out a byte of data */
-        self.i2c.txdr.write(|w| unsafe { w.bits(u32::from(*byte)) });
+        self.i2c.txdr.write(|w| unsafe { w.bits(u32::from(byte)) });
 
         /* If we received a NACK, then this is an error */
         if self.i2c.isr.read().nackf().bit_is_set() {
@@ -122,9 +125,9 @@ impl<PINS> WriteRead for I2c<I2C1, PINS> {
     fn write_read(&mut self, addr: u8, bytes: &[u8], buffer: &mut [u8]) -> Result<(), Error> {
         /* Set up current address, we're trying a "read" command and not going to set anything
          * and make sure we end a non-NACKed read (i.e. if we found a device) properly */
-        self.i2c.cr2.modify(|_, w| unsafe {
+        self.i2c.cr2.modify(|_, w| {
             w.sadd()
-                .bits(addr as u16)
+                .bits(addr.into())
                 .nbytes()
                 .bits(bytes.len() as u8)
                 .rd_wrn()
@@ -156,7 +159,7 @@ impl<PINS> WriteRead for I2c<I2C1, PINS> {
         }
 
         for c in bytes {
-            self.send_byte(c)?;
+            self.send_byte(*c)?;
         }
 
         /* Wait until data was sent */
@@ -164,9 +167,9 @@ impl<PINS> WriteRead for I2c<I2C1, PINS> {
 
         /* Set up current address, we're trying a "read" command and not going to set anything
          * and make sure we end a non-NACKed read (i.e. if we found a device) properly */
-        self.i2c.cr2.modify(|_, w| unsafe {
+        self.i2c.cr2.modify(|_, w| {
             w.sadd()
-                .bits(addr as u16)
+                .bits(addr.into())
                 .nbytes()
                 .bits(buffer.len() as u8)
                 .rd_wrn()
@@ -199,9 +202,9 @@ impl<PINS> Write for I2c<I2C1, PINS> {
     fn write(&mut self, addr: u8, bytes: &[u8]) -> Result<(), Error> {
         /* Set up current address, we're trying a "read" command and not going to set anything
          * and make sure we end a non-NACKed read (i.e. if we found a device) properly */
-        self.i2c.cr2.modify(|_, w| unsafe {
+        self.i2c.cr2.modify(|_, w| {
             w.sadd()
-                .bits(addr as u16)
+                .bits(addr.into())
                 .nbytes()
                 .bits(bytes.len() as u8)
                 .rd_wrn()
@@ -214,7 +217,7 @@ impl<PINS> Write for I2c<I2C1, PINS> {
         self.i2c.cr2.modify(|_, w| w.start().set_bit());
 
         for c in bytes {
-            self.send_byte(c)?;
+            self.send_byte(*c)?;
         }
 
         /* Fallthrough is success */

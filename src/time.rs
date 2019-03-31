@@ -1,3 +1,5 @@
+//! Time units
+
 /// Bits per second
 #[derive(PartialEq, PartialOrd, Clone, Copy)]
 pub struct Bps(pub u32);

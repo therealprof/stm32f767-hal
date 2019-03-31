@@ -1,57 +1,40 @@
-#![feature(used)]
-#![no_main]
+#![deny(unsafe_code)]
+#![deny(warnings)]
 #![no_std]
+#![no_main]
 
-#[macro_use(entry, exception)]
-extern crate cortex_m_rt;
+extern crate panic_halt;
 
-use cortex_m_rt::ExceptionFrame;
+use cortex_m_rt::entry;
+use stm32f767_hal::{delay::Delay, pac, prelude::*};
 
-extern crate panic_abort;
-extern crate stm32f767_hal as hal;
-use hal::delay::Delay;
-use hal::prelude::*;
-use hal::stm32f767;
-
-extern crate cortex_m;
-use cortex_m::peripheral::Peripherals;
-
-exception!(*, default_handler);
-
-fn default_handler(_irqn: i16) {}
-
-exception!(HardFault, hard_fault);
-
-fn hard_fault(_ef: &ExceptionFrame) -> ! {
-    loop {}
-}
-
-entry!(main);
-
+#[entry]
 fn main() -> ! {
-    if let (Some(p), Some(cp)) = (stm32f767::Peripherals::take(), Peripherals::take()) {
-        let gpiob = p.GPIOB.split();
+    let p = pac::Peripherals::take().unwrap();
+    let cp = cortex_m::Peripherals::take().unwrap();
 
-        // (Re-)configure Pb0 as output
-        let mut led = gpiob.pb0.into_push_pull_output();
+    // Take ownership over the RCC peripheral and convert it to the
+    // corresponding HAL struct.
+    let rcc = p.RCC.constrain();
 
-        // Constrain clocking registers
-        let mut rcc = p.RCC.constrain();
+    // Configure the clock and freeze it.
+    let clocks = rcc.cfgr.sysclk(216.mhz()).freeze();
 
-        // Configure clock to and freeze it
-        let clocks = rcc.cfgr.sysclk(216.mhz()).freeze();
+    // Acquire the GBIOB peripheral. This also enables the clock for GPIOB in
+    // the RCC register.
+    let gpiob = p.GPIOB.split();
 
-        /* Get delay provider */
-        let mut delay = Delay::new(cp.SYST, clocks);
+    // Configure PB0 as output.
+    let mut led = gpiob.pb0.into_push_pull_output();
 
-        loop {
-            led.set_high();
-            delay.delay_ms(500_u16);
+    // Get the delay provider.
+    let mut delay = Delay::new(cp.SYST, clocks);
 
-            led.set_low();
-            delay.delay_ms(500_u16);
-        }
+    loop {
+        led.set_high();
+        delay.delay_ms(500_u16);
+
+        led.set_low();
+        delay.delay_ms(500_u16);
     }
-
-    loop {}
 }
