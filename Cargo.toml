@@ -1,22 +1,14 @@
 [package]
 authors = ["Daniel Egger <daniel@eggers-club.de>"]
-categories = [
-    "embedded",
-    "hardware-support",
-    "no-std",
-]
-description = "Peripheral access API for STM32F767 microcontrollers"
-documentation = "https://docs.rs/stm32f767-hal"
-keywords = [
-    "arm",
-    "cortex-m",
-    "stm32f767",
-    "hal",
-]
+categories = ["embedded", "hardware-support", "no-std"]
+description = "HAL for the STM32F767 microcontrollers"
+keywords = ["arm", "cortex-m", "stm32", "stm32f767", "hal"]
 license = "0BSD"
 name = "stm32f767-hal"
 repository = "https://github.com/therealprof/stm32f767-hal"
-version = "0.2.0"
+documentation = "https://docs.rs/stm32f767-hal"
+readme = "README.md"
+version = "0.3.0-dev"
 
 [dependencies]
 cortex-m = "0.5.2"
