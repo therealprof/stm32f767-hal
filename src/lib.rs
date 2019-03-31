@@ -1,21 +1,11 @@
 #![no_std]
-#![cfg_attr(feature = "rt", feature(global_asm))]
-#![cfg_attr(feature = "rt", feature(use_extern_macros))]
-#![cfg_attr(feature = "rt", feature(used))]
-#![feature(const_fn)]
-#![allow(non_camel_case_types)]
-#![feature(never_type)]
 
-extern crate bare_metal;
-extern crate cast;
-extern crate cortex_m;
-pub extern crate embedded_hal as hal;
-#[macro_use]
-pub extern crate nb;
-pub use nb::block;
-pub extern crate stm32f7;
+use embedded_hal as hal;
 
-pub use stm32f7::stm32f7x7 as stm32f767;
+pub use stm32f7::stm32f7x7 as pac;
+
+pub use crate::pac as device;
+pub use crate::pac as stm32;
 
 pub mod delay;
 pub mod gpio;

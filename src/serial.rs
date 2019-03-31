@@ -1,22 +1,23 @@
-use core::fmt::{Result, Write};
 use core::marker::PhantomData;
 use core::ptr;
 
-use hal;
-use hal::prelude::*;
 use nb;
+use void::Void;
 
-use stm32f7::stm32f7x7::{UART4, UART5, USART1, USART2, USART3, USART6, RCC};
+use crate::hal;
+use crate::hal::serial::Write;
 
-use gpio::gpioa::{PA0, PA1, PA10, PA11, PA12, PA2, PA3, PA9};
-use gpio::gpiob::{PB10, PB11, PB12, PB13, PB14, PB15, PB5, PB6, PB7, PB8, PB9};
-use gpio::gpioc::{PC10, PC11, PC12, PC6, PC7};
-use gpio::gpiod::{PD0, PD1, PD2, PD5, PD6, PD8, PD9};
-use gpio::gpiog::{PG14, PG9};
-use gpio::gpioh::{PH13, PH14};
-use gpio::{AF1, AF4, AF6, AF7, AF8, Alternate};
-use rcc::Clocks;
-use time::Bps;
+use crate::pac::{RCC, UART4, UART5, USART1, USART2, USART3, USART6};
+
+use crate::gpio::gpioa::{PA0, PA1, PA10, PA11, PA12, PA2, PA3, PA9};
+use crate::gpio::gpiob::{PB10, PB11, PB12, PB13, PB14, PB15, PB5, PB6, PB7, PB8, PB9};
+use crate::gpio::gpioc::{PC10, PC11, PC12, PC6, PC7};
+use crate::gpio::gpiod::{PD0, PD1, PD2, PD5, PD6, PD8, PD9};
+use crate::gpio::gpiog::{PG14, PG9};
+use crate::gpio::gpioh::{PH13, PH14};
+use crate::gpio::{Alternate, AF1, AF4, AF6, AF7, AF8};
+use crate::rcc::Clocks;
+use crate::time::Bps;
 
 /// Serial error
 #[derive(Debug)]
@@ -145,9 +146,9 @@ impl hal::serial::Read<u8> for Rx<USART1> {
 }
 
 impl hal::serial::Write<u8> for Tx<USART1> {
-    type Error = !;
+    type Error = Void;
 
-    fn flush(&mut self) -> nb::Result<(), !> {
+    fn flush(&mut self) -> nb::Result<(), Void> {
         // NOTE(unsafe) atomic read with no side effects
         let isr = unsafe { (*USART1::ptr()).isr.read() };
 
@@ -158,7 +159,7 @@ impl hal::serial::Write<u8> for Tx<USART1> {
         }
     }
 
-    fn write(&mut self, byte: u8) -> nb::Result<(), !> {
+    fn write(&mut self, byte: u8) -> nb::Result<(), Void> {
         // NOTE(unsafe) atomic read with no side effects
         let isr = unsafe { (*USART1::ptr()).isr.read() };
 
@@ -242,9 +243,9 @@ impl hal::serial::Read<u8> for Rx<USART2> {
 }
 
 impl hal::serial::Write<u8> for Tx<USART2> {
-    type Error = !;
+    type Error = Void;
 
-    fn flush(&mut self) -> nb::Result<(), !> {
+    fn flush(&mut self) -> nb::Result<(), Void> {
         // NOTE(unsafe) atomic read with no side effects
         let isr = unsafe { (*USART2::ptr()).isr.read() };
 
@@ -255,7 +256,7 @@ impl hal::serial::Write<u8> for Tx<USART2> {
         }
     }
 
-    fn write(&mut self, byte: u8) -> nb::Result<(), !> {
+    fn write(&mut self, byte: u8) -> nb::Result<(), Void> {
         // NOTE(unsafe) atomic read with no side effects
         let isr = unsafe { (*USART2::ptr()).isr.read() };
 
@@ -339,9 +340,9 @@ impl hal::serial::Read<u8> for Rx<USART3> {
 }
 
 impl hal::serial::Write<u8> for Tx<USART3> {
-    type Error = !;
+    type Error = Void;
 
-    fn flush(&mut self) -> nb::Result<(), !> {
+    fn flush(&mut self) -> nb::Result<(), Void> {
         // NOTE(unsafe) atomic read with no side effects
         let isr = unsafe { (*USART3::ptr()).isr.read() };
 
@@ -352,7 +353,7 @@ impl hal::serial::Write<u8> for Tx<USART3> {
         }
     }
 
-    fn write(&mut self, byte: u8) -> nb::Result<(), !> {
+    fn write(&mut self, byte: u8) -> nb::Result<(), Void> {
         // NOTE(unsafe) atomic read with no side effects
         let isr = unsafe { (*USART3::ptr()).isr.read() };
 
@@ -367,16 +368,14 @@ impl hal::serial::Write<u8> for Tx<USART3> {
     }
 }
 
-impl<USART> Write for Tx<USART>
+impl<USART> core::fmt::Write for Tx<USART>
 where
     Tx<USART>: hal::serial::Write<u8>,
 {
-    fn write_str(&mut self, s: &str) -> Result {
-        let _ = s
-            .as_bytes()
-            .into_iter()
-            .map(|c| block!(self.write(*c)))
-            .last();
-        Ok(())
+    fn write_str(&mut self, s: &str) -> core::fmt::Result {
+        s.as_bytes()
+            .iter()
+            .try_for_each(|c| nb::block!(self.write(*c)))
+            .map_err(|_| core::fmt::Error)
     }
 }

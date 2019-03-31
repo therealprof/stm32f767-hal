@@ -1,48 +1,33 @@
-#![feature(used)]
-#![no_main]
+#![deny(unsafe_code)]
+#![deny(warnings)]
 #![no_std]
+#![no_main]
 
-#[macro_use(entry, exception)]
-extern crate cortex_m_rt;
+extern crate panic_halt;
 
-use cortex_m_rt::ExceptionFrame;
+use cortex_m_rt::entry;
+use stm32f767_hal::{pac, prelude::*};
 
-extern crate panic_abort;
-
-extern crate stm32f767_hal as hal;
-use hal::prelude::*;
-use hal::stm32f767;
-
-exception!(*, default_handler);
-
-fn default_handler(_irqn: i16) {}
-
-exception!(HardFault, hard_fault);
-
-fn hard_fault(_ef: &ExceptionFrame) -> ! {
-    loop {}
-}
-
-entry!(main);
-
+#[entry]
 fn main() -> ! {
-    if let Some(p) = stm32f767::Peripherals::take() {
-        let gpiob = p.GPIOB.split();
+    let p = pac::Peripherals::take().unwrap();
 
-        // Configure PB7 as output
-        let mut led = gpiob.pb7.into_push_pull_output();
+    // Acquire the GBIOB peripheral. This also enables the clock for GPIOB in
+    // the RCC register.
+    let gpiob = p.GPIOB.split();
 
-        loop {
-            // Turn PB7 on a million times in a row
-            for _ in 0..1_000_000 {
-                led.set_high();
-            }
-            // Then turn PB7 off a million times in a row
-            for _ in 0..1_000_000 {
-                led.set_low();
-            }
+    // Configure PB7 as output.
+    let mut led = gpiob.pb7.into_push_pull_output();
+
+    loop {
+        // Turn PB7 on a million times in a row.
+        for _ in 0..1_000_000 {
+            led.set_high();
+        }
+
+        // Then turn PB7 off a million times in a row.
+        for _ in 0..1_000_000 {
+            led.set_low();
         }
     }
-
-    loop {}
 }

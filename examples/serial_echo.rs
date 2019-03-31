@@ -1,62 +1,42 @@
-#![feature(used)]
-#![no_main]
+#![deny(unsafe_code)]
+#![deny(warnings)]
 #![no_std]
+#![no_main]
 
-#[macro_use(entry, exception)]
-extern crate cortex_m_rt;
+extern crate panic_halt;
 
-use cortex_m_rt::ExceptionFrame;
+use cortex_m_rt::entry;
+use stm32f767_hal::{pac, prelude::*, serial::Serial};
 
-extern crate panic_abort;
+use nb::block;
 
-extern crate stm32f767_hal as hal;
-use hal::prelude::*;
-use hal::stm32f767;
-
-#[macro_use(block)]
-extern crate nb;
-
-use hal::serial::Serial;
-
-exception!(*, default_handler);
-
-fn default_handler(_irqn: i16) {}
-
-exception!(HardFault, hard_fault);
-
-fn hard_fault(_ef: &ExceptionFrame) -> ! {
-    loop {}
-}
-
-entry!(main);
-
+#[entry]
 fn main() -> ! {
-    if let Some(p) = stm32f767::Peripherals::take() {
-        let gpiod = p.GPIOD.split();
-        let gpiob = p.GPIOB.split();
-        let mut rcc = p.RCC.constrain();
-        let clocks = rcc.cfgr.sysclk(108.mhz()).freeze();
+    let p = pac::Peripherals::take().unwrap();
 
-        let mut led = gpiob.pb7.into_push_pull_output();
+    let rcc = p.RCC.constrain();
+    let clocks = rcc.cfgr.sysclk(108.mhz()).freeze();
 
-        let tx = gpiod.pd8.into_alternate_af7();
-        let rx = gpiod.pd9.into_alternate_af7();
+    let gpiob = p.GPIOB.split();
+    let gpiod = p.GPIOD.split();
 
-        let serial = Serial::usart3(p.USART3, (tx, rx), 115_200.bps(), clocks);
+    let mut led = gpiob.pb7.into_push_pull_output();
 
-        let (mut tx, mut rx) = serial.split();
+    let tx_pin = gpiod.pd5.into_alternate_af7();
+    let rx_pin = gpiod.pd6.into_alternate_af7();
 
-        loop {
-            led.set_high();
-            let received = block!(rx.read()).unwrap_or('E' as u8);
-            block!(tx.write(received)).ok();
+    let serial = Serial::usart2(p.USART2, (tx_pin, rx_pin), 115_200.bps(), clocks);
 
-            // Turn PB7 off for a bit
-            for _ in 0..1_000_000 {
-                led.set_low();
-            }
+    let (mut tx, mut rx) = serial.split();
+
+    loop {
+        led.set_high();
+        let received = block!(rx.read()).unwrap_or(b'E');
+        block!(tx.write(received)).ok();
+
+        // Turn PB7 off for a bit
+        for _ in 0..2_000_000 {
+            led.set_low();
         }
     }
-
-    loop {}
 }

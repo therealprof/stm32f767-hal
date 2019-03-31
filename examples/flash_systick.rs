@@ -1,96 +1,89 @@
-#![feature(used)]
-#![no_main]
+#![deny(unsafe_code)]
+#![deny(warnings)]
 #![no_std]
+#![no_main]
 
-#[macro_use(entry, exception)]
-extern crate cortex_m_rt;
-
-use cortex_m_rt::ExceptionFrame;
-
-extern crate panic_abort;
-extern crate stm32f767_hal as hal;
-use hal::gpio::*;
-use hal::prelude::*;
-use hal::stm32f767;
-
-extern crate stm32f7;
-
-extern crate cortex_m;
-use cortex_m::interrupt::Mutex;
-use cortex_m::peripheral::syst::SystClkSource::Core;
-use cortex_m::peripheral::Peripherals;
+extern crate panic_halt;
 
 use core::cell::RefCell;
-use core::ops::DerefMut;
 
-static GPIO: Mutex<RefCell<Option<gpiob::PB7<Output<PushPull>>>>> = Mutex::new(RefCell::new(None));
+use cortex_m::interrupt::Mutex;
+use cortex_m::{asm, peripheral::syst};
+use cortex_m_rt::{entry, exception};
+use stm32f767_hal::{gpio::*, pac, prelude::*};
 
-exception!(*, default_handler);
+// The LED is initialised in the main, but we need to access it from the SysTick
+// exception handler. Using a Mutex let us do this in a safe way. The RefCell is
+// mandatory to make the LED mutable in a non-mutable Mutex container.
+static LED: Mutex<RefCell<Option<gpiob::PB7<Output<PushPull>>>>> = Mutex::new(RefCell::new(None));
 
-fn default_handler(_irqn: i16) {}
-
-exception!(HardFault, hard_fault);
-
-fn hard_fault(_ef: &ExceptionFrame) -> ! {
-    loop {}
-}
-
-entry!(main);
-
+#[entry]
 fn main() -> ! {
-    if let (Some(p), Some(cp)) = (stm32f767::Peripherals::take(), Peripherals::take()) {
-        let gpiob = p.GPIOB.split();
-        let mut rcc = p.RCC.constrain();
-        let _ = rcc.cfgr.sysclk(100.mhz()).freeze();
-        let mut syst = cp.SYST;
+    let p = pac::Peripherals::take().unwrap();
+    let cp = cortex_m::Peripherals::take().unwrap();
 
-        /* (Re-)configure Pb7 as output */
-        let mut led = gpiob.pb7.into_push_pull_output();
+    // Take ownership over the RCC peripheral and convert it to the
+    // corresponding HAL struct.
+    let rcc = p.RCC.constrain();
 
-        cortex_m::interrupt::free(move |cs| {
-            *GPIO.borrow(cs).borrow_mut() = Some(led);
-        });
+    // Configure the clock and freeze it.
+    rcc.cfgr.sysclk(100.mhz()).freeze();
 
-        /* Initialise SysTick counter with a defined value */
-        unsafe { syst.cvr.write(1) };
+    // Acquire the GBIOB peripheral. This also enables the clock for GPIOB in
+    // the RCC register.
+    let gpiob = p.GPIOB.split();
 
-        /* Set source for SysTick counter, here full operating frequency (== 8MHz) */
-        syst.set_clock_source(Core);
+    // Configure PB7 as output.
+    let led = gpiob.pb7.into_push_pull_output();
 
-        /* Set reload value, i.e. timer delay 100 MHz/4 Mcounts == 25Hz or 40ms */
-        syst.set_reload(4_000_000 - 1);
+    // Enter critical section to access the Mutex.
+    cortex_m::interrupt::free(|cs| {
+        LED.borrow(cs).replace(Some(led));
+    });
 
-        /* Start counter */
-        syst.enable_counter();
+    let mut systick = cp.SYST;
 
-        /* Start interrupt generation */
-        syst.enable_interrupt();
+    // Set the clock source for the SysTick counter.
+    systick.set_clock_source(syst::SystClkSource::Core);
+
+    // Set reload value, i.e. timer delay 100 MHz/4 Mcounts == 25Hz or 40ms.
+    systick.set_reload(4_000_000 - 1);
+
+    // Start the counter.
+    systick.enable_counter();
+
+    // Enable systick interrupt generation.
+    systick.enable_interrupt();
+
+    loop {
+        // Wait for an interrupt.
+        asm::wfi();
     }
-
-    loop {}
 }
 
-/* Define an exception, i.e. function to call when exception occurs. Here if our SysTick timer
- * trips the flash function will be called and the specified stated passed in via argument */
-exception!(SysTick, flash, state: u8 = 1);
+// Define an exception handler for the SysTick.
+#[exception]
+fn SysTick() {
+    static mut STATE: u8 = 0;
 
-fn flash(state: &mut u8) {
-    /* Enter critical section */
+    // Enter critical section to access the Mutex.
     cortex_m::interrupt::free(|cs| {
-        if let &mut Some(ref mut led) = GPIO.borrow(cs).borrow_mut().deref_mut() {
-            /* Check state variable, keep LED off most of the time and turn it on every 10th tick */
-            if *state < 10 {
-                // If set turn off the LED
+        if let Some(ref mut led) = *LED.borrow(cs).borrow_mut() {
+            // Check state variable, keep LED off most of the time and turn it
+            // on every 10th tick.
+
+            if *STATE < 10 {
+                // If set turn off the LED.
                 led.set_low();
 
-                // And now increment state variable
-                *state += 1;
+                // And now increment state variable.
+                *STATE += 1;
             } else {
-                // If not set, turn on the LED
+                // If not set, turn on the LED.
                 led.set_high();
 
-                // And set new state variable back to 0
-                *state = 0;
+                // And set new state variable back to 0.
+                *STATE = 0;
             }
         }
     });

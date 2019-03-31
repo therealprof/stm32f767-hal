@@ -1,4 +1,4 @@
-//! General Purpose Input / Output
+//! # General Purpose Input / Output
 
 use core::marker::PhantomData;
 
@@ -28,6 +28,7 @@ pub struct AF13;
 pub struct AF14;
 pub struct AF15;
 
+/// Alternate function
 pub struct Alternate<MODE> {
     _mode: PhantomData<MODE>,
 }
@@ -65,10 +66,10 @@ macro_rules! gpio {
         pub mod $gpiox {
             use core::marker::PhantomData;
 
-            use hal::digital::{InputPin, OutputPin};
-            use stm32f7::stm32f7x7::$GPIOX;
+            use crate::hal::digital::{InputPin, OutputPin};
+            use crate::pac::$GPIOX;
 
-            use stm32f7::stm32f7x7::RCC;
+            use crate::pac::RCC;
             use super::{
                 Alternate, Floating, GpioExt, Input, OpenDrain, Output,
                 PullDown, PullUp, PushPull, AF0, AF1, AF2, AF3, AF4, AF5, AF6, AF7, AF8, AF9, AF10,
@@ -529,7 +530,7 @@ gpio!(GPIOC, gpioc, gpiocen, PC, [
     PC15: (pc15, 15, Input<Floating>),
 ]);
 
-gpio!(GPIOD, gpiod, gpioden, pd, [
+gpio!(GPIOD, gpiod, gpioden, PD, [
     PD0: (pd0, 0, Input<Floating>),
     PD1: (pd1, 1, Input<Floating>),
     PD2: (pd2, 2, Input<Floating>),
