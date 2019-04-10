@@ -14,3 +14,4 @@ pub mod prelude;
 pub mod rcc;
 pub mod serial;
 pub mod time;
+pub mod timer;
