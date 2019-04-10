@@ -90,6 +90,8 @@ impl CFGR {
                 hclk: Hertz(hclk),
                 pclk1: Hertz(hclk),
                 pclk2: Hertz(hclk),
+                ppre1: 1,
+                ppre2: 1,
                 sysclk: Hertz(sysclk),
             }
         } else if sysclk == HSI && hclk < sysclk {
@@ -122,6 +124,8 @@ impl CFGR {
                 hclk: Hertz(hclk),
                 pclk1: Hertz(hclk),
                 pclk2: Hertz(hclk),
+                ppre1: 1,
+                ppre2: 1,
                 sysclk: Hertz(sysclk),
             }
         } else {
@@ -182,8 +186,8 @@ impl CFGR {
             let ppre2 = 1 << (ppre2_bits - 0b011);
 
             // Calculate new bus clocks
-            let pclk1 = hclk / ppre1;
-            let pclk2 = hclk / ppre2;
+            let pclk1 = hclk / u32::from(ppre1);
+            let pclk2 = hclk / u32::from(ppre2);
 
             // Adjust flash wait states
             flash.acr.write(|w| {
@@ -238,6 +242,8 @@ impl CFGR {
                 hclk: Hertz(hclk),
                 pclk1: Hertz(pclk1),
                 pclk2: Hertz(pclk2),
+                ppre1,
+                ppre2,
                 sysclk: Hertz(sysclk),
             }
         }
@@ -252,6 +258,8 @@ pub struct Clocks {
     hclk: Hertz,
     pclk1: Hertz,
     pclk2: Hertz,
+    ppre1: u8,
+    ppre2: u8,
     sysclk: Hertz,
 }
 
@@ -269,6 +277,16 @@ impl Clocks {
     /// Returns the frequency of the APB2
     pub fn pclk2(&self) -> Hertz {
         self.pclk2
+    }
+
+    /// Returns the prescaler of the APB1
+    pub fn ppre1(&self) -> u8 {
+        self.ppre1
+    }
+
+    /// Returns the prescaler of the APB2
+    pub fn ppre2(&self) -> u8 {
+        self.ppre2
     }
 
     /// Returns the system (core) frequency
